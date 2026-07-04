@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drill Master: Нафтогазовий Інженер</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&display=swap');
+        body { font-family: 'Fredoka', sans-serif; background-color: #f0f9ff; }
+        .gauge-container { transition: all 0.3s ease; }
+        .wellbore-scroll { scroll-behavior: smooth; }
+        .bit-rotate { animation: rotate 2s linear infinite; }
+        @keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .kick-alert { animation: blink 0.5s step-end infinite; }
+        @keyframes blink { 50% { opacity: 0; } }
+        .mud-flow { animation: flow-down 1s linear infinite; }
+        @keyframes flow-down { from { background-position: 0 0; } to { background-position: 0 40px; } }
+        .cuttings { animation: rise 3s linear infinite; }
+        @keyframes rise { from { bottom: 0; opacity: 1; } to { bottom: 100px; opacity: 0; } }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden">
+
+    <!-- Header -->
+    <header class="bg-yellow-400 p-4 shadow-md flex justify-between items-center border-b-4 border-yellow-500">
+        <div class="flex items-center gap-4">
+            <span class="text-3xl">🏗️</span>
+            <h1 class="text-2xl font-bold text-yellow-900">Drill Master</h1>
+        </div>
+        <div class="flex gap-8 text-lg font-semibold text-yellow-900">
+            <div>💰 Гроші: <span id="ui-budget">$10,000,000</span></div>
+            <div class="flex items-center gap-2">👤 <select id="ui-role" class="bg-yellow-300 border-none rounded p-1 text-sm"><option>Driller</option><option>Toolpusher</option><option>Mud Engineer</option></select></div>
+            <div>⭐ Репутація: <span id="ui-rep">100</span></div>
+        </div>
+    </header>
+
+    <main class="flex-1 flex overflow-hidden">
+        <!-- Wellbore Section (Left 70%) -->
+        <section class="flex-1 relative bg-white border-r-4 border-gray-200 overflow-hidden flex flex-col">
+            <div class="absolute top-4 right-4 z-10 bg-black/10 p-2 rounded-lg backdrop-blur-sm">
+                <div class="text-sm font-bold text-gray-700">СТАДІЯ: <span id="ui-stage" class="text-blue-600 uppercase">Site Survey</span></div>
+            </div>
+
+            <div id="wellbore-container" class="flex-1 overflow-y-auto wellbore-scroll relative bg-blue-50">
+                <!-- Geology Layers will be injected here -->
+                <div id="geology-visual" class="w-full relative"></div>
+                <!-- Rig Overlay (Simplified Top Drive / Derrick) -->
+                <div class="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-64 border-x-4 border-gray-300/50 flex items-center justify-center pointer-events-none z-20">
+                    <div class="w-16 h-24 bg-orange-400 border-4 border-orange-600 rounded-lg shadow-xl flex flex-col items-center justify-around p-2">
+                        <div class="w-8 h-8 bg-gray-800 rounded-full animate-spin"></div>
+                        <div class="text-[8px] font-bold text-orange-900 uppercase">Top Drive</div>
+                    </div>
+                </div>
+
+                <!-- Drill String -->
+                <div id="drill-string" class="absolute left-1/2 -translate-x-1/2 top-0 w-8 bg-gray-400 border-x-2 border-gray-500 transition-all duration-100" style="height: 0px; background-image: repeating-linear-gradient(0deg, transparent, transparent 10px, rgba(0,0,0,0.1) 10px, rgba(0,0,0,0.1) 20px);">
+                    <div id="mud-anim" class="absolute inset-0 opacity-30 pointer-events-none" style="background-image: linear-gradient(180deg, #3b82f6 25%, transparent 25%, transparent 50%, #3b82f6 50%, #3b82f6 75%, transparent 75%, transparent 100%); background-size: 10px 40px;"></div>
+                    <div id="bit" class="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-12 bg-gray-700 rounded-b-full flex items-center justify-center shadow-lg border-2 border-gray-600">
+                        <span class="text-white text-xs">⚙️</span>
+                        <div id="cuttings-container" class="absolute inset-0 pointer-events-none"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Controls Panel -->
+            <div class="h-48 bg-gray-100 p-4 border-t-4 border-gray-300 flex gap-8">
+                <div class="flex-1 grid grid-cols-2 gap-4">
+                    <div class="bg-white p-3 rounded-xl shadow-inner border-2 border-gray-200">
+                        <label class="block text-xs font-bold text-gray-500 uppercase">Навантаження (WOB)</label>
+                        <input type="range" id="input-wob" min="0" max="30" value="10" class="w-full h-4 bg-blue-200 rounded-lg appearance-none cursor-pointer accent-blue-600">
+                        <div class="text-right font-bold text-blue-700"><span id="val-wob">10</span> т</div>
+                    </div>
+                    <div class="bg-white p-3 rounded-xl shadow-inner border-2 border-gray-200">
+                        <label class="block text-xs font-bold text-gray-500 uppercase">Оберти (RPM)</label>
+                        <input type="range" id="input-rpm" min="0" max="200" value="100" class="w-full h-4 bg-orange-200 rounded-lg appearance-none cursor-pointer accent-orange-600">
+                        <div class="text-right font-bold text-orange-700"><span id="val-rpm">100</span> об/хв</div>
+                    </div>
+                    <div class="bg-white p-3 rounded-xl shadow-inner border-2 border-gray-200">
+                        <label class="block text-xs font-bold text-gray-500 uppercase">Подача (Flow)</label>
+                        <input type="range" id="input-flow" min="0" max="3500" value="2000" class="w-full h-4 bg-cyan-200 rounded-lg appearance-none cursor-pointer accent-cyan-600">
+                        <div class="text-right font-bold text-cyan-700"><span id="val-flow">2000</span> л/хв</div>
+                    </div>
+                    <div class="bg-white p-3 rounded-xl shadow-inner border-2 border-gray-200">
+                        <label class="block text-xs font-bold text-gray-500 uppercase">Густина (Mud Weight)</label>
+                        <input type="range" id="input-mud" min="1" max="2.5" step="0.01" value="1.20" class="w-full h-4 bg-purple-200 rounded-lg appearance-none cursor-pointer accent-purple-600">
+                        <div class="text-right font-bold text-purple-700"><span id="val-mud">1.20</span> SG</div>
+                    </div>
+                </div>
+                <button id="btn-next-stage" class="w-32 bg-green-500 hover:bg-green-600 text-white font-bold rounded-xl shadow-lg border-b-4 border-green-700 transition-all active:border-b-0 active:translate-y-1">
+                    НАСТУПНА<br>СТАДІЯ
+                </button>
+            </div>
+        </section>
+
+        <!-- Sidebar Section (Right 30%) -->
+        <aside class="w-96 bg-gray-50 p-6 flex flex-col gap-6">
+            <div class="grid grid-cols-2 gap-4">
+                <div class="bg-white p-4 rounded-2xl shadow-md border-b-4 border-green-500 text-center">
+                    <div class="text-3xl font-bold text-green-600" id="ui-depth">0.00</div>
+                    <div class="text-xs font-bold text-gray-400 uppercase">Глибина (м)</div>
+                </div>
+                <div class="bg-white p-4 rounded-2xl shadow-md border-b-4 border-blue-500 text-center">
+                    <div class="text-3xl font-bold text-blue-600" id="ui-rop">0.0</div>
+                    <div class="text-xs font-bold text-gray-400 uppercase">ROP (м/год)</div>
+                </div>
+                <div class="bg-white p-4 rounded-2xl shadow-md border-b-4 border-orange-500 text-center">
+                    <div class="text-3xl font-bold text-orange-600" id="ui-wear">0</div>
+                    <div class="text-xs font-bold text-gray-400 uppercase">Знос (%)</div>
+                </div>
+                <div class="bg-white p-4 rounded-2xl shadow-md border-b-4 border-purple-500 text-center">
+                    <div class="text-3xl font-bold text-purple-600" id="ui-ecd">1.200</div>
+                    <div class="text-xs font-bold text-gray-400 uppercase">ECD (SG)</div>
+                </div>
+            </div>
+
+            <!-- AI Consultant Panel -->
+            <div class="flex-1 bg-white rounded-3xl shadow-lg border-4 border-green-400 p-4 flex flex-col gap-4">
+                <div class="flex items-center gap-3 border-b-2 border-gray-100 pb-2">
+                    <span class="text-3xl">🤖</span>
+                    <h2 class="font-bold text-gray-700">AI Консультант</h2>
+                </div>
+                <div id="ai-messages" class="flex-1 overflow-y-auto text-sm space-y-3">
+                    <div class="bg-blue-50 p-3 rounded-lg border-l-4 border-blue-400 text-blue-800">Система готова до запуску. Очікую розпочатку буріння.</div>
+                </div>
+                <div id="kick-warning" class="hidden bg-red-500 text-white p-3 rounded-xl font-bold text-center kick-alert">
+                    ⚠️ ГНВП (KICK) ВИЯВЛЕНО!
+                </div>
+            </div>
+
+            <!-- Encyclopedia Button -->
+            <button class="bg-yellow-500 p-4 rounded-2xl font-bold text-yellow-900 shadow-lg border-b-4 border-yellow-700 hover:bg-yellow-400">
+                📚 БАЗА ЗНАНЬ
+            </button>
+        </aside>
+    </main>
+
+    <!-- Encyclopedia Modal -->
+    <div id="modal-encyclopedia" class="hidden fixed inset-0 bg-black/50 backdrop-blur-md z-50 flex items-center justify-center p-8">
+        <div class="bg-white w-full max-w-4xl h-full rounded-3xl shadow-2xl flex flex-col overflow-hidden border-8 border-yellow-400">
+            <div class="bg-yellow-400 p-6 flex justify-between items-center">
+                <h2 class="text-3xl font-bold text-yellow-900">📚 База Знань: Нафтогазова Справа</h2>
+                <button onclick="toggleModal('modal-encyclopedia')" class="bg-yellow-900 text-white w-10 h-10 rounded-full font-bold">X</button>
+            </div>
+            <div class="flex-1 flex overflow-hidden">
+                <nav class="w-64 bg-gray-100 p-4 space-y-2 overflow-y-auto">
+                    <button class="w-full text-left p-3 rounded-xl bg-white shadow-sm font-bold text-gray-700 hover:bg-yellow-100">🪨 Геологія</button>
+                    <button class="w-full text-left p-3 rounded-xl bg-white shadow-sm font-bold text-gray-700 hover:bg-yellow-100">⚙️ Обладнання</button>
+                    <button class="w-full text-left p-3 rounded-xl bg-white shadow-sm font-bold text-gray-700 hover:bg-yellow-100">🧪 Буровий Розчин</button>
+                    <button class="w-full text-left p-3 rounded-xl bg-white shadow-sm font-bold text-gray-700 hover:bg-yellow-100">🚨 Аварії (Kick/Blowout)</button>
+                </nav>
+                <article class="flex-1 p-8 overflow-y-auto prose">
+                    <h3 class="text-2xl font-bold text-gray-800 mb-4">Превентор (BOP Stack)</h3>
+                    <p class="text-gray-600 leading-relaxed">
+                        **BOP (Blowout Preventer)** — це критично важливе обладнання, призначене для герметизації гирла свердловини у разі виникнення прямого припливу пластового флюїду (Kick).
+                    </p>
+                    <div class="my-6 p-4 bg-blue-50 border-l-4 border-blue-500 rounded-r-xl">
+                        <h4 class="font-bold text-blue-800">Чому це важливо?</h4>
+                        <p class="text-sm text-blue-700">Якщо пластовий тиск перевищує гідростатичний тиск бурового розчину, газ або нафта почнуть підніматися вгору. Без закриття превентора це призведе до катастрофічного викиду (Blowout).</p>
+                    </div>
+                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/d/d7/Blowout_preventer_stack.jpg/300px-Blowout_preventer_stack.jpg" class="rounded-xl shadow-lg mb-4 mx-auto" alt="BOP">
+                </article>
+            </div>
+        </div>
+    </div>
+
+    <script src="simulator.js"></script>
+    <script>
+        const sim = new Simulator();
+
+        // Initial Visuals
+        const geoVisual = document.getElementById('geology-visual');
+        sim.geology.forEach(l => {
+            const div = document.createElement('div');
+            div.style.height = `${(l.bottom - l.top) * 5}px`;
+            div.style.backgroundColor = l.color;
+            div.className = "w-full border-b border-black/5 p-4 flex items-center";
+            div.innerHTML = `<span class="text-xs font-bold opacity-30 uppercase">${l.name}</span>`;
+            geoVisual.appendChild(div);
+        });
+
+        // UI Binding
+        const inputs = {
+            wob: document.getElementById('input-wob'),
+            rpm: document.getElementById('input-rpm'),
+            flow: document.getElementById('input-flow'),
+            mud: document.getElementById('input-mud')
+        };
+        const vals = {
+            wob: document.getElementById('val-wob'),
+            rpm: document.getElementById('val-rpm'),
+            flow: document.getElementById('val-flow'),
+            mud: document.getElementById('val-mud')
+        };
+        const displays = {
+            depth: document.getElementById('ui-depth'),
+            rop: document.getElementById('ui-rop'),
+            wear: document.getElementById('ui-wear'),
+            ecd: document.getElementById('ui-ecd'),
+            budget: document.getElementById('ui-budget'),
+            stage: document.getElementById('ui-stage'),
+            string: document.getElementById('drill-string'),
+            bit: document.getElementById('bit'),
+            ai: document.getElementById('ai-messages'),
+            kick: document.getElementById('kick-warning')
+        };
+
+        function updateLoop() {
+            // AI Analysis (Every frame or throttled)
+            const layer = sim.getCurrentLayer();
+            const pore_p = (layer.pore_grad * sim.depth) / 10;
+            const hydrostatic = (sim.mudDensity * sim.depth) / 10.197;
+
+            let aiMsgs = [];
+            if (sim.rop < 2 && sim.wob > 5 && sim.rpm > 50) aiMsgs.push("Причина низької швидкості: велика міцність породи або знос долота.");
+            if (hydrostatic < pore_p) aiMsgs.push("⚠️ ПОПЕРЕДЖЕННЯ: Пластовий тиск вищий за гідростатичний! Ризик ГНВП.");
+            if (sim.bitWear > 0.8) aiMsgs.push("Долото зношене. Рекомендується підйом для заміни.");
+
+            displays.ai.innerHTML = aiMsgs.map(m => `<div class="bg-blue-50 p-3 rounded-lg border-l-4 border-blue-400 text-blue-800">${m}</div>`).join('') ||
+                                    '<div class="bg-blue-50 p-3 rounded-lg border-l-4 border-blue-400 text-blue-800">Система стабільна.</div>';
+
+            sim.wob = parseFloat(inputs.wob.value);
+            sim.rpm = parseFloat(inputs.rpm.value);
+            sim.flowRate = parseFloat(inputs.flow.value);
+            sim.mudDensity = parseFloat(inputs.mud.value);
+
+            vals.wob.innerText = sim.wob;
+            vals.rpm.innerText = sim.rpm;
+            vals.flow.innerText = sim.flowRate;
+            vals.mud.innerText = sim.mudDensity.toFixed(2);
+
+            const res = sim.update();
+
+            displays.depth.innerText = res.depth.toFixed(2);
+            displays.rop.innerText = res.rop.toFixed(1);
+            displays.wear.innerText = (res.bitWear * 100).toFixed(0);
+            displays.ecd.innerText = res.ecd.toFixed(3);
+            displays.budget.innerText = `$${res.budget.toLocaleString(undefined, {maximumFractionDigits: 0})}`;
+            displays.stage.innerText = res.stage;
+
+            // Visuals
+            displays.string.style.height = `${res.depth * 5}px`;
+            if (sim.rpm > 0) displays.bit.classList.add('bit-rotate');
+            else displays.bit.classList.remove('bit-rotate');
+
+            if (sim.flowRate > 0) {
+                document.getElementById('mud-anim').classList.add('mud-flow');
+                document.getElementById('mud-anim').style.animationDuration = `${2000 / sim.flowRate}s`;
+            } else {
+                document.getElementById('mud-anim').classList.remove('mud-flow');
+            }
+
+            // Spawn cuttings if drilling
+            if (res.rop > 1 && Math.random() > 0.8) {
+                const particle = document.createElement('div');
+                particle.className = "absolute w-2 h-2 bg-gray-500 rounded-full cuttings";
+                particle.style.left = `${Math.random() * 40 - 20}px`;
+                document.getElementById('cuttings-container').appendChild(particle);
+                setTimeout(() => particle.remove(), 3000);
+            }
+
+            if (res.kick) displays.kick.classList.remove('hidden');
+            else displays.kick.classList.add('hidden');
+
+            // Scroll with bit
+            if (res.depth > 10) {
+                document.getElementById('wellbore-container').scrollTop = (res.depth * 5) - 200;
+            }
+
+            requestAnimationFrame(updateLoop);
+        }
+
+        document.getElementById('btn-next-stage').onclick = () => {
+            if (sim.stageIndex < sim.stages.length - 1) {
+                sim.stageIndex++;
+            }
+        };
+
+        updateLoop();
+
+        function toggleModal(id) {
+            document.getElementById(id).classList.toggle('hidden');
+        }
+    </script>
+</body>
+</html>
