@@ -1,133 +1,140 @@
+class Physics {
+    static GRAVITY = 9.80665;
+
+    // Bingham Plastic Pressure Loss (Pa)
+    static calculatePressureLoss(rho, flow, d_id, length, pv, yp) {
+        if (length <= 0 || d_id <= 0 || flow <= 0) return 0;
+        const v = (flow / 60000) / (Math.PI * Math.pow(d_id / 2, 2));
+        const gamma_dot = 8 * v / d_id;
+        const mu_eff = (pv * 0.001) + (yp * 0.4788 / gamma_dot);
+        const re = (rho * v * d_id) / mu_eff;
+        const f = (re < 2100) ? (64 / re) : (0.3164 / Math.pow(re, 0.25));
+        return f * (length / d_id) * (rho * v * v / 2);
+    }
+
+    static calculateMSE(wob_n, rpm, torque_nm, rop_ms, bit_d_m) {
+        const area = Math.PI * Math.pow(bit_d_m / 2, 2);
+        if (rop_ms <= 0) return 0;
+        return (wob_n / area) + (2 * Math.PI * (rpm / 60) * torque_nm) / (area * rop_ms);
+    }
+}
+
 class Geology {
     static LITHOLOGIES = {
-        "Sandstone": { ucs: [20, 60], por: [15, 30], perm: [100, 2000], abr: 0.4, color: "#facc15" },
-        "Shale": { ucs: [10, 40], por: [5, 15], perm: [0.001, 0.1], abr: 0.2, color: "#64748b" },
-        "Limestone": { ucs: [60, 150], por: [5, 20], perm: [1, 100], abr: 0.6, color: "#e2e8f0" },
-        "Dolomite": { ucs: [80, 200], por: [5, 15], perm: [1, 50], abr: 0.7, color: "#94a3b8" },
-        "Granite": { ucs: [150, 250], por: [1, 3], perm: [0.0001, 0.01], abr: 0.9, color: "#f87171" }
+        "Пісок": { ucs: [15, 40], por: [20, 35], perm: [200, 3000], abr: 0.3, color: "#fef08a" },
+        "Глина": { ucs: [5, 25], por: [10, 20], perm: [0.001, 0.1], abr: 0.1, color: "#94a3b8" },
+        "Вапняк": { ucs: [50, 150], por: [5, 20], perm: [1, 200], abr: 0.5, color: "#f8fafc" },
+        "Доломіт": { ucs: [80, 220], por: [2, 15], perm: [0.1, 50], abr: 0.7, color: "#cbd5e1" },
+        "Граніт": { ucs: [150, 350], por: [0.5, 2], perm: [0.0001, 0.01], abr: 0.9, color: "#fca5a5" }
     };
 
     static generate(totalDepth) {
         let layers = [];
-        let currentDepth = 0;
-        while (currentDepth < totalDepth) {
-            let keys = Object.keys(Geology.LITHOLOGIES);
-            let litho = keys[Math.floor(Math.random() * keys.length)];
-            let props = Geology.LITHOLOGIES[litho];
-            let thickness = 50 + Math.random() * 250;
-            let bottom = Math.min(currentDepth + thickness, totalDepth);
+        let curr = 0;
+        while (curr < totalDepth) {
+            const types = Object.keys(this.LITHOLOGIES);
+            const name = types[Math.floor(Math.random() * types.length)];
+            const props = this.LITHOLOGIES[name];
+            const thick = 100 + Math.random() * 400;
+            const bottom = Math.min(curr + thick, totalDepth);
 
             layers.push({
-                name: litho,
-                top: currentDepth,
-                bottom: bottom,
+                name, top: curr, bottom, ...props,
                 ucs: props.ucs[0] + Math.random() * (props.ucs[1] - props.ucs[0]),
-                porosity: props.por[0] + Math.random() * (props.por[1] - props.por[0]),
-                permeability: props.perm[0] + Math.random() * (props.perm[1] - props.perm[0]),
-                abrasivity: props.abr + (Math.random() * 0.2 - 0.1),
-                color: props.color,
-                pore_grad: 1.03 + (currentDepth / 5000) * (0.1 + Math.random() * 0.4),
-                fracture_grad: 1.5 + (currentDepth / 5000) * 0.5
+                youngModulus: 10 + Math.random() * 40, // GPa
+                poissonRatio: 0.2 + Math.random() * 0.15,
+                mineralogy: { quartz: Math.random(), clay: Math.random() },
+                fractures: Math.random() * 0.2,
+                saturation: { oil: Math.random() * 0.3, gas: Math.random() * 0.2, water: 0.5 },
+                pore_grad: 1.03 + (curr / 5000) * (0.1 + Math.random() * 0.6),
+                frac_grad: 1.6 + (curr / 5000) * 0.4
             });
-            currentDepth = bottom;
+            curr = bottom;
         }
         return layers;
     }
 }
 
-class Hydraulics {
-    static calculatePressureLoss(density_sg, flow_lpm, id_inch, length_m, pv, yp) {
-        if (length_m <= 0 || id_inch <= 0 || flow_lpm <= 0) return 0;
-        let density = density_sg * 1000;
-        let d = id_inch * 0.0254;
-        let v = (flow_lpm / 60000) / (Math.PI * (d / 2)**2);
-        let gamma = 8 * v / d;
-        let mu_eff = (pv * 0.001) + (yp * 0.4788 / gamma);
-        let re = (density * v * d) / mu_eff;
-        let f = (re < 2100) ? (64 / re) : (0.3164 / Math.pow(re, 0.25));
-        return (f * (length_m / d) * (density * v * v / 2)) / 100000;
-    }
-}
-
 class Simulator {
     constructor() {
-        this.totalDepth = 3000;
-        this.geology = Geology.generate(this.totalDepth);
+        this.geology = Geology.generate(4000);
         this.depth = 0;
-        this.bitWear = 0;
-        this.mudDensity = 1.20;
-        this.wob = 10;
-        this.rpm = 100;
-        this.flowRate = 2000;
-        this.budget = 10000000;
+        this.targetDepth = 4000;
+        this.wob = 0; this.rpm = 0; this.flow = 0; this.mudDensity = 1.10;
+        this.pv = 15; this.yp = 12;
+        this.bitWear = 0; this.bitImpactDamage = 0; this.pumpWear = 0;
+        this.fuel = 100000; this.budget = 5000000;
+        this.dailyRate = 85000; this.fuelPrice = 1.5;
+        this.totalSpent = 0;
         this.stageIndex = 0;
-        this.kickActive = false;
-        this.pitVolume = 500;
-        this.lastUpdate = Date.now();
+        this.activeKick = false; this.pitVolume = 400;
 
         this.stages = [
-            "Site Survey & Permitting", "Rig Mobilization", "Rig Up", "Conductor Drilling",
-            "Conductor Casing & Cementing", "Nipple Up (Diverter)", "Surface Hole Drilling",
-            "Surface Casing Running", "Surface Cementing", "Nipple Up (BOP)", "BOP Testing",
-            "Intermediate I Hole Drilling", "Intermediate I Casing Running", "Intermediate I Cementing",
-            "Intermediate II Hole Drilling", "Intermediate II Casing Running", "Intermediate II Cementing",
-            "Production Hole Drilling", "Open Hole Logging", "Production Casing / Liner Running",
-            "Production Cementing", "Well Completion", "Nipple Down BOP / Nipple Up Tree",
-            "Perforation", "Stimulation", "Flowback & Testing", "Production Operations",
-            "Workover / Intervention", "Enhanced Oil Recovery", "Plug & Abandonment (Temporary)",
-            "Final Decommissioning"
-        ];
-    }
+            "Вибір ділянки", "Мобілізація", "Монтаж вишки", "Буріння під напрямну", "Спуск напрямної",
+            "Цементування напрямної", "Монтаж дивертора", "Буріння під кондуктор", "Спуск кондуктора",
+            "Цементування кондуктора", "Монтаж ПВО", "Випробування ПВО", "Буріння тех. секції 1",
+            "Спуск тех. колони 1", "Цементування тех. 1", "Буріння тех. секції 2", "Спуск тех. колони 2",
+            "Цементування тех. 2", "Буріння експлуатаційної секції", "ГІС в похилій свердловині",
+            "Спуск експлуатаційної колони", "Цементування", "Вторинне розкриття", "Освоєння",
+            "Стимуляція пласта", "Випробування пласта", "Видобуток", "КРС / ПРС",
+            "Підтримання тиску", "Ліквідація", "Рекультивація"
+        ].map((n, i) => ({ name: n, target: (i + 1) * 129, task: "Виконуйте роботи згідно плану" }));
 
-    getCurrentLayer() {
-        return this.geology.find(l => this.depth >= l.top && this.depth <= l.bottom) || this.geology[this.geology.length - 1];
+        this.lastTime = Date.now();
+        this.history = [];
     }
 
     update() {
-        let now = Date.now();
-        let dt = (now - this.lastUpdate) / 1000;
-        this.lastUpdate = now;
-        let game_dt_hrs = dt / 60; // 1 real sec = 1 game min
+        const now = Date.now();
+        const dt_sec = (now - this.lastTime) / 1000;
+        this.lastTime = now;
+        const game_dt_min = dt_sec * 5;
+        const game_dt_hr = game_dt_min / 60;
 
-        let layer = this.getCurrentLayer();
-        let hydrostatic = (this.mudDensity * this.depth) / 10.197;
-        let annLoss = Hydraulics.calculatePressureLoss(this.mudDensity, this.flowRate, 8.5, this.depth, 15, 12) * 0.3;
-        let bhp = hydrostatic + annLoss;
-        let ecd = (bhp * 10.197) / (this.depth || 1);
+        const layer = this.geology.find(l => this.depth >= l.top && this.depth <= l.bottom) || this.geology[this.geology.length-1];
 
-        // Drilling Logic
-        if (this.flowRate > 500 && this.rpm > 0) {
-            let clean_eff = Math.min(1.0, this.flowRate / 2500);
-            let base_rop = (Math.pow(this.rpm, 0.7) * Math.pow(this.wob, 1.2)) / (layer.ucs * 0.5);
-            let rop = base_rop * clean_eff * Math.exp(-2.0 * this.bitWear);
-            this.depth += rop * game_dt_hrs;
-            this.bitWear += (rop * layer.abrasivity * (layer.ucs / 50)) / 2000 * game_dt_hrs;
-            this.rop = rop;
-        } else {
-            this.rop = 0;
+        const hydro = (this.mudDensity * this.depth) / 10.197;
+        const annLoss = Physics.calculatePressureLoss(this.mudDensity*1000, this.flow, 0.08, this.depth, this.pv, this.yp) / 100000;
+        this.bhp = hydro + (this.flow > 0 ? annLoss : 0);
+        this.ecd = (this.bhp * 10.197) / (this.depth || 1);
+
+        let rop = 0;
+        if (this.flow > 500 && this.rpm > 10 && this.wob > 1) {
+            const clean_eff = Math.min(1.0, this.flow / (this.depth * 0.5 + 1000));
+            const wear_factor = Math.exp(-3 * this.bitWear);
+            rop = (Math.pow(this.rpm, 0.6) * Math.pow(this.wob, 1.1) * 5) / (layer.ucs * 0.5);
+            rop *= (clean_eff * wear_factor);
+
+            this.depth += rop * game_dt_hr;
+            this.bitWear += (rop * layer.abr * (layer.ucs / 100)) / 10000 * game_dt_min;
         }
+        this.rop = rop;
+        this.torque = 0.5 * this.wob * 0.2 * 0.3 * (layer.ucs / 50) + (this.rpm / 200);
+        this.mse = Physics.calculateMSE(this.wob * 9806, this.rpm, this.torque * 1000, rop / 3600, 0.2159) / 1e6;
 
-        // Safety
-        let pore_p = (layer.pore_grad * this.depth) / 10;
-        if (bhp < pore_p) {
-            this.kickActive = true;
-            let influx = (pore_p - bhp) * layer.permeability * 0.0001 * dt;
-            this.pitVolume += influx;
-        }
+        const poreP = (layer.pore_grad * this.depth) / 10;
+        this.activeKick = (this.bhp < poreP && this.depth > 100);
+        if (this.activeKick) this.pitVolume += (poreP - this.bhp) * 0.001 * game_dt_min;
 
-        // Economy
-        this.budget -= (50000 / 24) * game_dt_hrs; // Daily rate
+        const fuelBurn = (this.flow * 0.2) + (this.rpm * 0.5) + (this.wob * 0.1);
+        const stepCost = (this.dailyRate / 24) * game_dt_hr + (fuelBurn * game_dt_hr * this.fuelPrice);
+        this.budget -= stepCost;
+        this.totalSpent += stepCost;
+        this.fuel -= fuelBurn * game_dt_hr;
 
         return {
-            depth: this.depth,
-            rop: this.rop,
-            bitWear: this.bitWear,
-            ecd: ecd,
-            bhp: bhp,
-            kick: this.kickActive,
-            pitVolume: this.pitVolume,
-            stage: this.stages[this.stageIndex],
-            budget: this.budget
+            depth: this.depth, rop: this.rop, bhp: this.bhp, ecd: this.ecd, mse: this.mse,
+            bitWear: this.bitWear, budget: this.budget, fuel: this.fuel, kick: this.activeKick,
+            pit: this.pitVolume, stage: this.stages[this.stageIndex], layer: layer, torque: this.torque
         };
+    }
+
+    getAIAdvice(res) {
+        const advices = [];
+        if (res.mse > res.layer.ucs * 3) advices.push(`AI: Енергія руйнування (MSE: ${res.mse.toFixed(0)}) занадто висока. Виникають вібрації. Зменште WOB.`);
+        if (res.bitWear > 0.7) advices.push("AI: Високий знос долота. Ефективність буріння падає експоненціально.");
+        if (res.kick) advices.push("AI: ТЕРМІНОВО! Пластовий тиск перевищив тиск у свердловині. Закрийте ПВО та важіть розчин!");
+        if (res.rop < 2 && res.rpm > 100) advices.push("AI: Полірування вибою. Недостатнє навантаження для поточної твердості породи.");
+        return advices.length > 0 ? advices : ["AI: Параметри в нормі. Продовжуйте буріння."];
     }
 }
